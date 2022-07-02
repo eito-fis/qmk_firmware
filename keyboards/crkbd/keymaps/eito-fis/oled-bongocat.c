@@ -231,9 +231,8 @@ Counters *counters;
 
 void slave_counter_sync(uint8_t initiator2target_buffer_size, const void* initiator2target_buffer, uint8_t target2initiator_buffer_size, void* target2initiator_buffer) {
     const Counters* recv = (const Counters*)initiator2target_buffer;
-    Counters*       send = (Counters*)target2initiator_buffer;
-    send->oled_time = recv->oled_time;
-    send->anim_time = recv->anim_time;
+    counters->oled_time = recv->oled_time;
+    counters->anim_time = recv->anim_time;
 }
 
 void keyboard_post_init_user(void) {
@@ -248,12 +247,13 @@ void user_state_sync(void) {
     if (is_keyboard_master()) {
         static uint32_t last_sync = 0;
         if (timer_elapsed32(last_sync) > 100) {
-            last_sync = timer_read32();
-            transaction_rpc_exec(RPC_ID_COUNTERS, sizeof(counters), &counters, sizeof(counters), &counters);
+            if (transaction_rpc_send(RPC_ID_COUNTERS, sizeof(counters), counters)) {
+              last_sync = timer_read32();
+              dprint("Performed RPC call!\n");
+            } else  {
+              dprint("Failed to perform RPC call!\n");
+            }
         }
-    } else {
-      dprintf("Slave oled counter: %d\n", (int)counters->oled_time);
-      dprintf("Slave anim counter: %d\n", (int)counters->anim_time);
     }
 }
 
@@ -277,7 +277,7 @@ static void decode_frame(unsigned char const *frame) {
 		if (count & 0x80) {
 			// Next count-128 bytes are unique
 			count &= ~(0x80);
-			for (uint8_t uniqs = 0; uniqs < count; ++uniqs) {
+  		for (uint8_t uniqs = 0; uniqs < count; ++uniqs) {
 				uint8_t byte = pgm_read_byte(frame + i); i++;
 				oled_write_raw_byte(byte, cursor++);
 			}
